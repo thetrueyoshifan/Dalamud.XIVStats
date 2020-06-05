@@ -1,12 +1,13 @@
 ﻿using Dalamud.Game.Chat.SeStringHandling;
 using Dalamud.Game.Command;
 using Dalamud.Plugin;
+using Lumina.Excel.GeneratedSheets;
 using System;
 using System.IO;
 using System.Reflection;
 using System.Threading;
 
-namespace SamplePlugin
+namespace XIVStats
 {
     public class Plugin : IDalamudPlugin
     {
@@ -14,15 +15,18 @@ namespace SamplePlugin
 
         private const string commandName = "/xivstats";
 
-        private DalamudPluginInterface pi;
+        internal static Plugin Instance;
+        internal DalamudPluginInterface pi;
         private Configuration configuration;
         private PluginUI ui;
         private Thread classCheckThread;
 
         private int cachedClass = 0;
+        private int previousHP = 1;
 
         public void Initialize(DalamudPluginInterface pluginInterface)
         {
+            Instance = this;
             this.pi = pluginInterface;
             
             this.configuration = this.pi.GetPluginConfig() as Configuration ?? new Configuration();
@@ -46,16 +50,20 @@ namespace SamplePlugin
             pi.Framework.Gui.Chat.OnChatMessage += OnChatMessage;
         }
 
-        public void OnChatMessage(Dalamud.Game.Chat.XivChatType type, uint senderId, ref SeString sender, ref SeString message, ref bool isHandled){
-            if (message.TextValue == "You received a player commendation!" && sender.TextValue == "")
+        public void OnChatMessage(Dalamud.Game.Chat.XivChatType type, uint senderId, ref SeString sender, ref SeString message, ref bool isHandled)
+        {
+            if (pi.Data.IsDataReady)
             {
-                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
-                    configuration.classes.Find(a => a.ClassID == cachedClass).CommendationsReceived++;
-            }
-            else if (message.TextValue == "You are defeated." && sender.TextValue == "")
-            {
-                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
-                    configuration.classes.Find(a => a.ClassID == cachedClass).Deaths++;
+                if (message.TextValue == pi.Data.GetExcelSheet<LogMessage>().GetRow(926).Text && sender.TextValue == "")
+                {
+                    if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
+                        configuration.classes.Find(a => a.ClassID == cachedClass).CommendationsReceived++;
+                }
+                else if ((message.TextValue.Contains("You are defeated") || message.TextValue.Contains("Du brichst zusammen") || (message.TextValue.Contains("Du wurdest von") && message.TextValue.Contains("besiegt")) || message.TextValue.Contains("Vous vous effondrez") || message.TextValue.Contains("Vous avez été vaincue") ||  message.TextValue == "\u306f\u3001\u529b\u5c3d\u304d\u305f\u3002") && sender.TextValue == "")
+                {
+                    if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
+                        configuration.classes.Find(a => a.ClassID == cachedClass).Deaths++;
+                }
             }
         }
         
@@ -94,8 +102,9 @@ namespace SamplePlugin
         private void DrawUI()
         {
             if (pi.ClientState.LocalPlayer != null)
+            {
                 cachedClass = pi.ClientState.LocalPlayer.ClassJob.Id;
-            if (pi.ClientState.LocalPlayer != null) {
+
                 ui.PlayerHealth = pi.ClientState.LocalPlayer.CurrentHp;
                 ui.PlayerMP = pi.ClientState.LocalPlayer.CurrentMp;
             }

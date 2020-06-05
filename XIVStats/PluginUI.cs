@@ -2,7 +2,7 @@
 using System;
 using System.Numerics;
 
-namespace SamplePlugin
+namespace XIVStats
 {
     // It is good to have this be disposable in general, in case you ever need it
     // to do any cleanup
@@ -67,9 +67,9 @@ namespace SamplePlugin
             {
                 WindowTitle += " | ";
                 if (configuration.ShowAbbreviatedNames)
-                    WindowTitle += ClassInfo.AbbreviatedClassNames[currentClass.ClassID];
+                    WindowTitle += ClassInfo.ClassAbbreviatedName(currentClass.ClassID);
                 else
-                    WindowTitle += ClassInfo.ClassNames[currentClass.ClassID];
+                    WindowTitle += ClassInfo.ClassName(currentClass.ClassID);
                 TimeSpan classPlaytime = (new DateTime().AddSeconds(currentClass.TimeActive) - new DateTime());
                 WindowTitle +=  " ["+classPlaytime.ToString("g")+"]";
             }
@@ -81,7 +81,7 @@ namespace SamplePlugin
                 ImGui.Text("MP: " + PlayerMP);
                 if (currentClass != null)
                 {
-                    ImGui.Text("Class: " + (configuration.ShowAbbreviatedNames ? ClassInfo.AbbreviatedClassNames[currentClass.ClassID] : ClassInfo.ClassNames[currentClass.ClassID]));
+                    ImGui.Text("Class: " + (configuration.ShowAbbreviatedNames ? ClassInfo.ClassAbbreviatedName(currentClass.ClassID) : ClassInfo.ClassName(currentClass.ClassID)));
                     TimeSpan classPlaytime = (new DateTime().AddSeconds(currentClass.TimeActive) - new DateTime());
                     ImGui.Text("Time played: " + classPlaytime.ToString("g"));
                     ImGui.Text("Commendations received: " + currentClass.CommendationsReceived);
