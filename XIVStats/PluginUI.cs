@@ -49,9 +49,11 @@ namespace XIVStats
             DrawSettingsWindow();
         }
 
-        public int PlayerHealth = 0;
-        public int PlayerMP = 0;
         public ClassInfo currentClass;
+        public bool InDuty = false;
+        public bool wasInDuty = false;
+        public long DutyTime = 0;
+        public int DutyDeaths = 0;
 
         public void DrawMainWindow()
         {
@@ -76,9 +78,6 @@ namespace XIVStats
             WindowTitle += "###XIVStats";
             if (ImGui.Begin(WindowTitle, ref this.visible, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
             {
-
-                ImGui.Text("HP: " + PlayerHealth);
-                ImGui.Text("MP: " + PlayerMP);
                 if (currentClass != null)
                 {
                     ImGui.Text("Class: " + (configuration.ShowAbbreviatedNames ? ClassInfo.ClassAbbreviatedName(currentClass.ClassID) : ClassInfo.ClassName(currentClass.ClassID)));
@@ -86,6 +85,8 @@ namespace XIVStats
                     ImGui.Text("Time played: " + classPlaytime.ToString("g"));
                     ImGui.Text("Commendations received: " + currentClass.CommendationsReceived);
                     ImGui.Text("Deaths: " + currentClass.Deaths);
+                    ImGui.Text("Damage Dealt: " + currentClass.DamageDealt);
+                    ImGui.Text("Health Healed: " + currentClass.HealthHealed);
                 }
                 if (ImGui.Button("Configuration"))
                 {

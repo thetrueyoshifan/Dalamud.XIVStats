@@ -1,10 +1,12 @@
 ﻿using Dalamud.Game.Chat.SeStringHandling;
+using Dalamud.Game.ClientState;
 using Dalamud.Game.Command;
 using Dalamud.Plugin;
 using Lumina.Excel.GeneratedSheets;
 using System;
 using System.IO;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace XIVStats
@@ -21,8 +23,12 @@ namespace XIVStats
         private PluginUI ui;
         private Thread classCheckThread;
 
+        private string cachedCommendationString = "";
+
         private int cachedClass = 0;
-        private int previousHP = 1;
+        private string cachedName = "";
+
+        private bool spellCasted = false;
 
         public void Initialize(DalamudPluginInterface pluginInterface)
         {
@@ -52,36 +58,60 @@ namespace XIVStats
 
         public void OnChatMessage(Dalamud.Game.Chat.XivChatType type, uint senderId, ref SeString sender, ref SeString message, ref bool isHandled)
         {
-            if (pi.Data.IsDataReady)
+            if (cachedCommendationString == "")
             {
-                if (message.TextValue == pi.Data.GetExcelSheet<LogMessage>().GetRow(926).Text && sender.TextValue == "")
+                if (pi.Data.IsDataReady)
                 {
-                    if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
-                        configuration.classes.Find(a => a.ClassID == cachedClass).CommendationsReceived++;
-                }
-                else if ((message.TextValue.Contains("You are defeated") || message.TextValue.Contains("Du brichst zusammen") || (message.TextValue.Contains("Du wurdest von") && message.TextValue.Contains("besiegt")) || message.TextValue.Contains("Vous vous effondrez") || message.TextValue.Contains("Vous avez été vaincue") ||  message.TextValue == "\u306f\u3001\u529b\u5c3d\u304d\u305f\u3002") && sender.TextValue == "")
-                {
-                    if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
-                        configuration.classes.Find(a => a.ClassID == cachedClass).Deaths++;
+                    cachedCommendationString = pi.Data.GetExcelSheet<LogMessage>().GetRow(926).Text;
                 }
             }
+            if (message.TextValue == cachedCommendationString && sender.TextValue == "")
+            {
+                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
+                    configuration.classes.Find(a => a.ClassID == cachedClass).CommendationsReceived++;
+            }
+            else if ((message.TextValue.Contains("You are defeated") || message.TextValue.Contains("Du brichst zusammen") || (message.TextValue.Contains("Du wurdest von") && message.TextValue.Contains("besiegt")) || message.TextValue.Contains("Vous vous effondrez") || message.TextValue.Contains("Vous avez été vaincue") || message.TextValue == "\u306f\u3001\u529b\u5c3d\u304d\u305f\u3002") && sender.TextValue == "")
+            {
+                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
+                    configuration.classes.Find(a => a.ClassID == cachedClass).Deaths++;
+                if (ui.InDuty)
+                    ui.DutyDeaths++;
+            }
+            else if (((message.TextValue.Contains("You use") || message.TextValue.Contains("You cast")) && sender.TextValue == ""))
+            {
+                spellCasted = true;
+            }
+            else if (message.TextValue.Contains("takes") && message.TextValue.Contains("damage") && spellCasted)
+            {
+                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
+                    configuration.classes.Find(a => a.ClassID == cachedClass).DamageDealt += long.Parse(Regex.Match(message.TextValue, @"\d+").Value);
+            }
+            else if (message.TextValue.Contains("recover") && message.TextValue.Contains("HP") && spellCasted)
+            {
+                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
+                    configuration.classes.Find(a => a.ClassID == cachedClass).HealthHealed += long.Parse(Regex.Match(message.TextValue, @"\d+").Value);
+            }
+            else if (spellCasted && !message.TextValue.Contains("recover") && (!message.TextValue.Contains("takes") && !message.TextValue.Contains("damage")) && !message.TextValue.Contains("defeat") && !message.TextValue.Contains("suffers") && !message.TextValue.Contains("misses"))
+                spellCasted = false;
+            else if (message.TextValue.Contains("You hit the") && sender.TextValue == "")
+            {
+                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
+                    configuration.classes.Find(a => a.ClassID == cachedClass).DamageDealt += long.Parse(Regex.Match(message.TextValue, @"\d+").Value);
+            }
         }
-        
+
         public void Loop()
         {
             while (true)
             {
                 Thread.Sleep(1000);
-                if (pi.ClientState.LocalPlayer != null)
+                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass && a.AssociatedCharacterName != cachedName) == -1)
                 {
-                    if (configuration.classes.FindIndex(a => a.ClassID == cachedClass && a.AssociatedCharacterName != pi.ClientState.LocalPlayer.Name) == -1)
-                    {
-                        configuration.classes.Add(new ClassInfo { ClassID = cachedClass, AssociatedCharacterName = pi.ClientState.LocalPlayer.Name });
-                    }
-                    ClassInfo inf = configuration.classes.Find(a => a.ClassID == cachedClass);
-                    inf.TimeActive++;
-                    configuration.Save();
+                    configuration.classes.Add(new ClassInfo { ClassID = cachedClass, AssociatedCharacterName = cachedName });
                 }
+                ClassInfo inf = configuration.classes.Find(a => a.ClassID == cachedClass);
+                inf.TimeActive++;
+                configuration.Save();
             }
         }
 
@@ -104,11 +134,12 @@ namespace XIVStats
             if (pi.ClientState.LocalPlayer != null)
             {
                 cachedClass = pi.ClientState.LocalPlayer.ClassJob.Id;
+                if (!string.IsNullOrEmpty(pi.ClientState.LocalPlayer.Name))
+                cachedName = pi.ClientState.LocalPlayer.Name;
 
-                ui.PlayerHealth = pi.ClientState.LocalPlayer.CurrentHp;
-                ui.PlayerMP = pi.ClientState.LocalPlayer.CurrentMp;
+                if (ui.currentClass == null || ui.currentClass.ClassID != cachedClass)
+                    ui.currentClass = configuration.classes.Find(a => a.ClassID == cachedClass);
             }
-            ui.currentClass = configuration.classes.Find(a => a.ClassID == cachedClass);
             this.ui.Draw();
         }
 
