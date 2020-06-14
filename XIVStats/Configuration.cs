@@ -14,6 +14,8 @@ namespace XIVStats
 
         public bool ShowAbbreviatedNames = false;
 
+        public bool ParseChat = true;
+
         // the below exist just to make saving less cumbersome
 
         [NonSerialized]

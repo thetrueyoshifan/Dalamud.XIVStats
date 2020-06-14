@@ -85,8 +85,11 @@ namespace XIVStats
                     ImGui.Text("Time played: " + classPlaytime.ToString("g"));
                     ImGui.Text("Commendations received: " + currentClass.CommendationsReceived);
                     ImGui.Text("Deaths: " + currentClass.Deaths);
-                    ImGui.Text("Damage Dealt: " + currentClass.DamageDealt);
-                    ImGui.Text("Health Healed: " + currentClass.HealthHealed);
+                    if (configuration.ParseChat)
+                    {
+                        ImGui.Text("Damage Dealt: " + currentClass.DamageDealt);
+                        ImGui.Text("Health Healed: " + currentClass.HealthHealed);
+                    }
                 }
                 if (ImGui.Button("Configuration"))
                 {
@@ -104,14 +107,20 @@ namespace XIVStats
                 return;
             }
 
-            ImGui.SetNextWindowSize(new Vector2(232, 75), ImGuiCond.Always);
+            ImGui.SetNextWindowSize(new Vector2(232, 150), ImGuiCond.Always);
             if (ImGui.Begin("XIVStats Configuration", ref this.settingsVisible,
                 ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
             {
                 // can't ref a property, so use a local copy
-                var configValue = this.configuration.ShowAbbreviatedNames;
-                if (ImGui.Checkbox("Show abbreviated class names", ref configValue)){
-                    this.configuration.ShowAbbreviatedNames = configValue;
+                var abbreviatedConfigValue = this.configuration.ShowAbbreviatedNames;
+                if (ImGui.Checkbox("Show abbreviated class names", ref abbreviatedConfigValue)){
+                    this.configuration.ShowAbbreviatedNames = abbreviatedConfigValue;
+                    this.configuration.Save();
+                }
+                var parseChatConfigValue = this.configuration.ParseChat;
+                if (ImGui.Checkbox("Show total damage and heal values (WIP)", ref parseChatConfigValue))
+                {
+                    this.configuration.ParseChat = parseChatConfigValue;
                     this.configuration.Save();
                 }
             }

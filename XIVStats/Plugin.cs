@@ -25,6 +25,8 @@ namespace XIVStats
 
         private string cachedCommendationString = "";
 
+        private bool ThreadEnabled = true;
+
         private int cachedClass = 0;
         private string cachedName = "";
 
@@ -34,7 +36,7 @@ namespace XIVStats
         {
             Instance = this;
             this.pi = pluginInterface;
-            
+
             this.configuration = this.pi.GetPluginConfig() as Configuration ?? new Configuration();
             this.configuration.Initialize(this.pi);
 
@@ -65,6 +67,7 @@ namespace XIVStats
                     cachedCommendationString = pi.Data.GetExcelSheet<LogMessage>().GetRow(926).Text;
                 }
             }
+
             if (message.TextValue == cachedCommendationString && sender.TextValue == "")
             {
                 if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
@@ -77,39 +80,42 @@ namespace XIVStats
                 if (ui.InDuty)
                     ui.DutyDeaths++;
             }
-            else if (((message.TextValue.Contains("You use") || message.TextValue.Contains("You cast")) && sender.TextValue == ""))
+            if (configuration.ParseChat)
             {
-                spellCasted = true;
-            }
-            else if (message.TextValue.Contains("takes") && message.TextValue.Contains("damage") && spellCasted)
-            {
-                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
-                    configuration.classes.Find(a => a.ClassID == cachedClass).DamageDealt += long.Parse(Regex.Match(message.TextValue, @"\d+").Value);
-            }
-            else if (message.TextValue.Contains("recover") && message.TextValue.Contains("HP") && spellCasted)
-            {
-                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
-                    configuration.classes.Find(a => a.ClassID == cachedClass).HealthHealed += long.Parse(Regex.Match(message.TextValue, @"\d+").Value);
-            }
-            else if (spellCasted && !message.TextValue.Contains("recover") && (!message.TextValue.Contains("takes") && !message.TextValue.Contains("damage")) && !message.TextValue.Contains("defeat") && !message.TextValue.Contains("suffers") && !message.TextValue.Contains("misses"))
-                spellCasted = false;
-            else if (message.TextValue.Contains("You hit the") && sender.TextValue == "")
-            {
-                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
-                    configuration.classes.Find(a => a.ClassID == cachedClass).DamageDealt += long.Parse(Regex.Match(message.TextValue, @"\d+").Value);
+                if (((message.TextValue.Contains("You use") || message.TextValue.Contains("You cast")) && sender.TextValue == ""))
+                {
+                    spellCasted = true;
+                }
+                else if (message.TextValue.Contains("takes") && message.TextValue.Contains("damage") && spellCasted)
+                {
+                    if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
+                        configuration.classes.Find(a => a.ClassID == cachedClass).DamageDealt += long.Parse(Regex.Match(message.TextValue, @"\d+").Value);
+                }
+                else if (message.TextValue.Contains("recover") && message.TextValue.Contains("HP") && spellCasted)
+                {
+                    if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
+                        configuration.classes.Find(a => a.ClassID == cachedClass).HealthHealed += long.Parse(Regex.Match(message.TextValue, @"\d+").Value);
+                }
+                else if (spellCasted && !message.TextValue.Contains("recover") && (!message.TextValue.Contains("takes") && !message.TextValue.Contains("damage")) && !message.TextValue.Contains("defeat") && !message.TextValue.Contains("suffers") && !message.TextValue.Contains("misses"))
+                    spellCasted = false;
+                else if (message.TextValue.Contains("You hit the") && sender.TextValue == "")
+                {
+                    if (configuration.classes.FindIndex(a => a.ClassID == cachedClass) != -1)
+                        configuration.classes.Find(a => a.ClassID == cachedClass).DamageDealt += long.Parse(Regex.Match(message.TextValue, @"\d+").Value);
+                }
             }
         }
 
         public void Loop()
         {
-            while (true)
+            while (ThreadEnabled)
             {
                 Thread.Sleep(1000);
-                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass && a.AssociatedCharacterName != cachedName) == -1)
+                if (configuration.classes.FindIndex(a => a.ClassID == cachedClass && a.AssociatedCharacterName == cachedName) == -1)
                 {
                     configuration.classes.Add(new ClassInfo { ClassID = cachedClass, AssociatedCharacterName = cachedName });
                 }
-                ClassInfo inf = configuration.classes.Find(a => a.ClassID == cachedClass);
+                ClassInfo inf = configuration.classes.Find(a => a.ClassID == cachedClass && a.AssociatedCharacterName == cachedName);
                 inf.TimeActive++;
                 configuration.Save();
             }
@@ -117,10 +123,11 @@ namespace XIVStats
 
         public void Dispose()
         {
+            this.ThreadEnabled = false;
             this.ui.Dispose();
-            classCheckThread.Abort();
 
             this.pi.CommandManager.RemoveHandler(commandName);
+            pi.Framework.Gui.Chat.OnChatMessage -= OnChatMessage;
             this.pi.Dispose();
         }
 
@@ -135,7 +142,7 @@ namespace XIVStats
             {
                 cachedClass = pi.ClientState.LocalPlayer.ClassJob.Id;
                 if (!string.IsNullOrEmpty(pi.ClientState.LocalPlayer.Name))
-                cachedName = pi.ClientState.LocalPlayer.Name;
+                    cachedName = pi.ClientState.LocalPlayer.Name;
 
                 if (ui.currentClass == null || ui.currentClass.ClassID != cachedClass)
                     ui.currentClass = configuration.classes.Find(a => a.ClassID == cachedClass);
